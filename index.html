@@ -133,11 +133,51 @@
             margin-bottom: 20px;
             text-align: center;
         }
+        .search-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 20px;
+            position: relative;
+        }
+        #searchInput {
+            padding: 12px 20px;
+            width: 60%;
+            border: 2px solid #ddd;
+            border-radius: 50px;
+            outline: none;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+        }
+        #searchInput:focus {
+            border-color: #4caf50;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+        }
+        #searchButton {
+            position: absolute;
+            right: calc(20% + 10px);
+            padding: 12px 20px;
+            background-color: #4caf50;
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        #searchButton:hover {
+            background-color: #45a049;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>إدارة الطلبات</h1>
+        <div class="search-container">
+            <input type="text" id="searchInput" placeholder="ابحث عن رقم الطلب">
+            <button id="searchButton">بحث</button>
+        </div>
         <a href="add-order.html" class="add-order-link">إضافة طلب جديد</a>
         <div id="notification"></div>
         <div id="ordersList">
@@ -206,94 +246,70 @@
         authDomain: "vndr11.firebaseapp.com",
         projectId: "vndr11",
         storageBucket: "vndr11.appspot.com",
-        messagingSenderId: "411092840558",
-        appId: "1:411092840558:web:5d38f8a50d5eaada2a767f",
-        measurementId: "G-77M15Z0H07"
+        messagingSenderId: "115411857017",
+        appId: "1:115411857017:web:f0ed748c23236e4a2a3c08",
+        measurementId: "G-8RNMLYFEFZ"
       };
 
       const app = initializeApp(firebaseConfig);
       const db = getFirestore(app);
 
-      async function loadOrders() {
-        const ordersCollection = collection(db, "orders");
-        const ordersSnapshot = await getDocs(ordersCollection);
-        const orders = ordersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
+      async function loadOrders(searchQuery = "") {
         const ordersList = document.getElementById('ordersList');
-        ordersList.innerHTML = '';
-
-        orders.forEach(order => {
-          const card = document.createElement('div');
-          card.classList.add('order-card');
-          card.innerHTML = `
-            <h2>طلب رقم ${order.orderNumber}</h2>
-            <div class="details"><strong>يوزر الزبون:</strong> ${order.customerUsername}</div>
-            <div class="details"><strong>رابط العربة:</strong> ${order.cartLink}</div>
-            <div class="details"><strong>المحافظة:</strong> ${order.province}</div>
-            <div class="details"><strong>العنوان:</strong> ${order.address}</div>
-            <div class="details"><strong>رقم الهاتف الأول:</strong> ${order.phone1}</div>
-            <div class="details"><strong>رقم الهاتف الثاني:</strong> ${order.phone2}</div>
-            <div class="details"><strong>السعر الكلي:</strong> ${order.totalPrice}</div>
-            <div class="details"><strong>رابط المنتج المكرر 1:</strong> ${order.productLink1}</div>
-            <div class="details"><strong>عدد 1:</strong> ${order.productCount1}</div>
-            <!-- Add more fields as needed -->
-            <div class="action-buttons">
-              <button class="edit-button" data-id="${order.id}">تعديل</button>
-              <button class="delete-button" data-id="${order.id}">حذف</button>
-            </div>
-          `;
-          ordersList.appendChild(card);
-        });
-
-        document.querySelectorAll('.edit-button').forEach(button => {
-          button.addEventListener('click', openEditModal);
-        });
-
-        document.querySelectorAll('.delete-button').forEach(button => {
-          button.addEventListener('click', deleteOrder);
-        });
+        ordersList.innerHTML = "";
+        const ordersSnapshot = await getDocs(collection(db, "orders"));
+        const orders = ordersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        orders
+          .filter(order => !searchQuery || order.orderNumber.includes(searchQuery))
+          .sort((a, b) => b.date - a.date)
+          .forEach(order => {
+            const orderCard = document.createElement('div');
+            orderCard.classList.add('order-card');
+            orderCard.innerHTML = `
+              <h2>رقم الشحنة: ${order.orderNumber}</h2>
+              <div class="details">يوزر الزبون: ${order.customerUsername}</div>
+              <div class="details">المحافظة: ${order.province}</div>
+              <div class="details">العنوان: ${order.address}</div>
+              <div class="details">رقم الهاتف الأول: ${order.phone1}</div>
+              <div class="details">رقم الهاتف الثاني: ${order.phone2}</div>
+              <div class="details">السعر الكلي: ${order.totalPrice} دينار</div>
+              <div class="action-buttons">
+                <button class="edit-button" data-id="${order.id}">تعديل</button>
+                <button class="delete-button" data-id="${order.id}">حذف</button>
+              </div>
+            `;
+            ordersList.appendChild(orderCard);
+          });
       }
 
-      function openEditModal(event) {
-        const orderId = event.target.getAttribute('data-id');
-        document.getElementById('editModal').style.display = 'block';
-        populateEditForm(orderId);
+      async function deleteOrder(orderId) {
+        await deleteDoc(doc(db, "orders", orderId));
+        document.getElementById('notification').textContent = "تم حذف الطلب بنجاح!";
+        document.getElementById('notification').style.display = 'block';
+        loadOrders();
       }
 
-      function closeModal() {
-        document.getElementById('editModal').style.display = 'none';
+      function openEditModal(orderData) {
+        const editModal = document.getElementById('editModal');
+        editModal.style.display = "block";
+        document.getElementById('orderId').value = orderData.id;
+        document.getElementById('orderNumber').value = orderData.orderNumber;
+        document.getElementById('customerUsername').value = orderData.customerUsername;
+        document.getElementById('cartLink').value = orderData.cartLink;
+        document.getElementById('province').value = orderData.province;
+        document.getElementById('address').value = orderData.address;
+        document.getElementById('phone1').value = orderData.phone1;
+        document.getElementById('phone2').value = orderData.phone2;
+        document.getElementById('totalPrice').value = orderData.totalPrice;
+        document.getElementById('productLink1').value = orderData.productLink1;
+        document.getElementById('productCount1').value = orderData.productCount1;
       }
 
-      async function populateEditForm(orderId) {
-        const orderDoc = doc(db, "orders", orderId);
-        const orderSnapshot = await getDoc(orderDoc);
-        if (!orderSnapshot.exists()) return;
-
-        const orderData = orderSnapshot.data();
-
-        document.getElementById('orderId').value = orderId;
-        document.getElementById('orderNumber').value = orderData.orderNumber || '';
-        document.getElementById('customerUsername').value = orderData.customerUsername || '';
-        document.getElementById('cartLink').value = orderData.cartLink || '';
-        document.getElementById('province').value = orderData.province || '';
-        document.getElementById('address').value = orderData.address || '';
-        document.getElementById('phone1').value = orderData.phone1 || '';
-        document.getElementById('phone2').value = orderData.phone2 || '';
-        document.getElementById('totalPrice').value = orderData.totalPrice || '';
-        document.getElementById('productLink1').value = orderData.productLink1 || '';
-        document.getElementById('productCount1').value = orderData.productCount1 || '';
-        // Populate more fields as needed
-      }
-
-      async function updateOrder(event) {
+      async function saveOrderEdits(event) {
         event.preventDefault();
-
         const orderId = document.getElementById('orderId').value;
-        if (!orderId) return;
-
-        const orderDoc = doc(db, "orders", orderId);
-
-        const updatedData = {
+        const updatedOrderData = {
           orderNumber: document.getElementById('orderNumber').value,
           customerUsername: document.getElementById('customerUsername').value,
           cartLink: document.getElementById('cartLink').value,
@@ -301,33 +317,57 @@
           address: document.getElementById('address').value,
           phone1: document.getElementById('phone1').value,
           phone2: document.getElementById('phone2').value,
-          totalPrice: document.getElementById('totalPrice').value,
+          totalPrice: parseFloat(document.getElementById('totalPrice').value),
           productLink1: document.getElementById('productLink1').value,
-          productCount1: document.getElementById('productCount1').value,
-          // Add more fields as needed
+          productCount1: parseInt(document.getElementById('productCount1').value)
         };
 
-        await updateDoc(orderDoc, updatedData);
-
-        document.getElementById('notification').textContent = 'تم تعديل الطلب بنجاح';
+        await updateDoc(doc(db, "orders", orderId), updatedOrderData);
+        document.getElementById('notification').textContent = "تم تحديث الطلب بنجاح!";
         document.getElementById('notification').style.display = 'block';
-
-        setTimeout(() => {
-          document.getElementById('editModal').style.display = 'none';
-          loadOrders(); // Reload orders list
-        }, 2000); // Hide modal and reload orders after 2 seconds
+        loadOrders();
+        document.getElementById('editModal').style.display = "none";
       }
 
-      async function deleteOrder(event) {
-        const orderId = event.target.getAttribute('data-id');
-        if (confirm('هل أنت متأكد من حذف هذا الطلب؟')) {
-          await deleteDoc(doc(db, "orders", orderId));
-          loadOrders(); // Reload orders list
+      document.getElementById('searchButton').addEventListener('click', () => {
+        const searchQuery = document.getElementById('searchInput').value;
+        loadOrders(searchQuery);
+      });
+
+      document.addEventListener('click', (event) => {
+        if (event.target.classList.contains('delete-button')) {
+          const orderId = event.target.getAttribute('data-id');
+          deleteOrder(orderId);
+        } else if (event.target.classList.contains('edit-button')) {
+          const orderId = event.target.getAttribute('data-id');
+          const orderData = {
+            id: orderId,
+            orderNumber: event.target.parentElement.previousElementSibling.previousElementSibling.previousElementSibling.previousElementSibling.previousElementSibling.previousElementSibling.textContent.replace('رقم الشحنة: ', ''),
+            customerUsername: event.target.parentElement.previousElementSibling.previousElementSibling.previousElementSibling.previousElementSibling.previousElementSibling.textContent.replace('يوزر الزبون: ', ''),
+            cartLink: '', // Assuming you store the cart link elsewhere
+            province: event.target.parentElement.previousElementSibling.previousElementSibling.previousElementSibling.previousElementSibling.textContent.replace('المحافظة: ', ''),
+            address: event.target.parentElement.previousElementSibling.previousElementSibling.previousElementSibling.textContent.replace('العنوان: ', ''),
+            phone1: event.target.parentElement.previousElementSibling.previousElementSibling.textContent.replace('رقم الهاتف الأول: ', ''),
+            phone2: event.target.parentElement.previousElementSibling.textContent.replace('رقم الهاتف الثاني: ', ''),
+            totalPrice: event.target.parentElement.textContent.replace('السعر الكلي: ', '').replace(' دينار', ''),
+            productLink1: '', // Assuming you store the product link elsewhere
+            productCount1: 0 // Assuming you store the product count elsewhere
+          };
+          openEditModal(orderData);
         }
-      }
+      });
 
-      document.querySelector('.close').addEventListener('click', closeModal);
-      document.getElementById('editForm').addEventListener('submit', updateOrder);
+      document.getElementById('editForm').addEventListener('submit', saveOrderEdits);
+
+      document.querySelector('.close').addEventListener('click', () => {
+        document.getElementById('editModal').style.display = "none";
+      });
+
+      window.addEventListener('click', (event) => {
+        if (event.target == document.getElementById('editModal')) {
+          document.getElementById('editModal').style.display = "none";
+        }
+      });
 
       loadOrders();
     </script>
